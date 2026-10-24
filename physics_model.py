@@ -15,7 +15,7 @@ def calc_physics(cfg, t, theta, omega, alpha):
     I_chuck = 0.5 * cfg["chuck_mass"] * (cfg["chuck_R"] ** 2)
     I_total = I_wafer + I_chuck
 
-    # Tính các đại lượng trên mảng numpy (không dùng vòng for)
+    # Tính các đại lượng trên mảng numpy 
     rpm = omega * 60 / (2 * np.pi)
     jerk = np.gradient(alpha, t)
 

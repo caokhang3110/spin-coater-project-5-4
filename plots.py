@@ -21,6 +21,13 @@ def set_common_style():
     plt.rcParams["legend.fontsize"] = 10
     plt.rcParams["figure.titlesize"] = 13
 
+def load_csv(filename):
+    path = os.path.join(OUTPUT_DIR, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Missing file: {path}. Run python main.py first."
+        )
+    return pd.read_csv(path)
 
 # Hàm phụ trợ để bật lưới và lưu hình 300 dpi cho gọn
 def finish_and_save(fig, filename):
@@ -30,22 +37,34 @@ def finish_and_save(fig, filename):
     plt.close(fig)
     print("Saved:", save_path)
 
+def get_t_ramp_from_summary_or_results(row, target_rpm=3000.0):
+    if "t_ramp_s" in row and pd.notna(row["t_ramp_s"]):
+        return float(row["t_ramp_s"])
+
+    case_name = row["case"]
+    df_case = load_csv(f"{case_name}_results.csv")
+    # Không có hàm mũ thì dùng 99% tốc độ (~4.6 * T_m)
+    threshold = 0.99 * target_rpm if "exp" in case_name else 0.999 * target_rpm
+    reached = df_case[df_case["rpm"] >= threshold]
+    if len(reached) > 0:
+        return float(reached["time_t"].iloc[0])
+    return float(row["t_end_s"])
+
 # B3: Vẽ 10 đồ thi (grahps) - only read from file csv
 
 # Hình 1: Vận tốc góc omega(t) của 3 profile tăng tốc
 def plot_fig01():
-    df_lin = pd.read_csv("data/outputs/case_300mm_linear_1000.csv")
-    df_scv = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
-    df_exp = pd.read_csv("data/outputs/case_300mm_exp_1000.csv")
+    df_lin = load_csv("case_300mm_linear_1000_results.csv")
+    df_scv = load_csv("case_300mm_scurve_1000_results.csv")
+    df_exp = load_csv("case_300mm_exp_1000_results.csv")
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    # Dùng kiểu nét khác nhau (-, --, :) để in trắng đen vẫn phân biệt được
-    ax.plot(df_lin["time_t"], df_lin["omega"], "-", linewidth=2, label="Linear profile")
-    ax.plot(df_scv["time_t"], df_scv["omega"], "--", linewidth=2, label="S-curve profile")
-    ax.plot(df_exp["time_t"], df_exp["omega"], ":", linewidth=2, label="Exponential profile")
+    ax.plot(df_lin["time_t"], df_lin["omega"], "-", linewidth=2, label="Linear")
+    ax.plot(df_scv["time_t"], df_scv["omega"], "--", linewidth=2, label="S-curve")
+    ax.plot(df_exp["time_t"], df_exp["omega"], ":", linewidth=2, label="Exponential")
 
-    ax.set_title("Angular Velocity vs. Time for Three Acceleration Profiles")
-    ax.set_xlabel("Time t (s)")
+    ax.set_title("Angular Velocity $\\omega(t)$ for Three Acceleration Profiles (300 mm, 3000 rpm)")
+    ax.set_xlabel("Time $t$ (s)")
     ax.set_ylabel("Angular Velocity $\\omega$ (rad/s)")
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend()
@@ -55,27 +74,27 @@ def plot_fig01():
 
 # Hình 2: Gia tốc góc alpha(t) và độ giật góc jerk(t)
 def plot_fig02():
-    df_lin = pd.read_csv("data/outputs/case_300mm_linear_1000.csv")
-    df_scv = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
-    df_exp = pd.read_csv("data/outputs/case_300mm_exp_1000.csv")
+    df_lin = load_csv("case_300mm_linear_1000_results.csv")
+    df_scv = load_csv("case_300mm_scurve_1000_results.csv")
+    df_exp = load_csv("case_300mm_exp_1000_results.csv")
 
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7, 6))
 
     # Khung trên vẽ gia tốc góc alpha
-    axes[0].plot(df_lin["time_t"], df_lin["alpha"], "-", label="Linear")
-    axes[0].plot(df_scv["time_t"], df_scv["alpha"], "--", label="S-curve")
-    axes[0].plot(df_exp["time_t"], df_exp["alpha"], ":", label="Exponential")
+    axes[0].plot(df_lin["time_t"], df_lin["alpha"], "-", linewidth=1.8, label="Linear")
+    axes[0].plot(df_scv["time_t"], df_scv["alpha"], "--", linewidth=1.8, label="S-curve")
+    axes[0].plot(df_exp["time_t"], df_exp["alpha"], ":", linewidth=2.0, label="Exponential")
     axes[0].set_ylabel("Angular Accel. $\\alpha$ (rad/s$^2$)")
-    axes[0].set_title("Angular Acceleration and Angular Jerk vs. Time")
+    axes[0].set_title("Angular Acceleration $\\alpha(t)$ and Angular Jerk $j(t)$ vs. Time")
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend()
 
     # Khung dưới vẽ độ giật jerk
-    axes[1].plot(df_lin["time_t"], df_lin["jerk"], "-", label="Linear")
-    axes[1].plot(df_scv["time_t"], df_scv["jerk"], "--", label="S-curve")
-    axes[1].plot(df_exp["time_t"], df_exp["jerk"], ":", label="Exponential")
-    axes[1].set_xlabel("Time t (s)")
-    axes[1].set_ylabel("Angular Jerk j (rad/s$^3$)")
+    axes[1].plot(df_lin["time_t"], df_lin["jerk"], "-", linewidth=1.8, label="Linear")
+    axes[1].plot(df_scv["time_t"], df_scv["jerk"], "--", linewidth=1.8, label="S-curve")
+    axes[1].plot(df_exp["time_t"], df_exp["jerk"], ":", linewidth=2.0, label="Exponential")
+    axes[1].set_xlabel("Time $t$ (s)")
+    axes[1].set_ylabel("Angular Jerk $j$ (rad/s$^3$)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
     axes[1].legend()
 
@@ -84,23 +103,23 @@ def plot_fig02():
 
 # Hình 3: Hình nhiều khung (multi-pane) cho theta(t), omega(t), alpha(t)
 def plot_fig03():
-    df = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
+    df = load_csv("case_300mm_scurve_1000_results.csv")
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(7, 7))
 
-    axes[0].plot(df["time_t"], df["theta"], "-", color="blue", label="$\\theta(t)$")
+    axes[0].plot(df["time_t"], df["theta"], "-", color="tab:blue", linewidth=2, label="$\\theta(t)$")
     axes[0].set_ylabel("Angle $\\theta$ (rad)")
-    axes[0].set_title("Multi-pane Angular Kinematics (S-curve Profile)")
+    axes[0].set_title("Multi-Pane Kinematics $\\theta(t)$, $\\omega(t)$, $\\alpha(t)$ (S-curve Profile)")
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend(loc="upper left")
 
-    axes[1].plot(df["time_t"], df["omega"], "--", color="darkorange", label="$\\omega(t)$")
+    axes[1].plot(df["time_t"], df["omega"], "--", color="tab:orange", linewidth=2, label="$\\omega(t)$")
     axes[1].set_ylabel("Velocity $\\omega$ (rad/s)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
     axes[1].legend(loc="upper left")
 
-    axes[2].plot(df["time_t"], df["alpha"], "-.", color="green", label="$\\alpha(t)$")
-    axes[2].set_xlabel("Time t (s)")
+    axes[2].plot(df["time_t"], df["alpha"], "-.", color="tab:green", linewidth=2, label="$\\alpha(t)$")
+    axes[2].set_xlabel("Time $t$ (s)")
     axes[2].set_ylabel("Accel. $\\alpha$ (rad/s$^2$)")
     axes[2].grid(True, linestyle="--", alpha=0.5)
     axes[2].legend(loc="upper right")
@@ -110,16 +129,16 @@ def plot_fig03():
 
 # Hình 4: Giản đồ pha (Phase Portrait) omega theo theta
 def plot_fig04():
-    df_lin = pd.read_csv("data/outputs/case_300mm_linear_1000.csv")
-    df_scv = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
-    df_exp = pd.read_csv("data/outputs/case_300mm_exp_1000.csv")
+    df_lin = load_csv("case_300mm_linear_1000_results.csv")
+    df_scv = load_csv("case_300mm_scurve_1000_results.csv")
+    df_exp = load_csv("case_300mm_exp_1000_results.csv")
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
     ax.plot(df_lin["theta"], df_lin["omega"], "-", linewidth=2, label="Linear")
     ax.plot(df_scv["theta"], df_scv["omega"], "--", linewidth=2, label="S-curve")
     ax.plot(df_exp["theta"], df_exp["omega"], ":", linewidth=2, label="Exponential")
 
-    ax.set_title("Phase Portrait: Angular Velocity $\\omega$ vs. Angle $\\theta$")
+    ax.set_title("Phase Portrait: Angular Velocity $\\omega$ vs. Angular Position $\\theta$")
     ax.set_xlabel("Angular Position $\\theta$ (rad)")
     ax.set_ylabel("Angular Velocity $\\omega$ (rad/s)")
     ax.grid(True, linestyle="--", alpha=0.5)
@@ -127,66 +146,89 @@ def plot_fig04():
 
     finish_and_save(fig, "fig04_phase_portrait_omega_theta.png")
 
-
 # Hình 5: Gia tốc tiếp tuyến a_t và gia tốc hướng tâm a_c ở mép wafer theo t
 def plot_fig05():
-    df = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
+    df = load_csv("case_300mm_scurve_1000_results.csv")
 
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7, 5.5))
 
-    axes[0].plot(df["time_t"], df["a_t_edge"], "-", color="red", label="$a_t = \\alpha R$")
-    axes[0].set_ylabel("Tangential Accel. $a_t$ (m/s$^2$)")
-    axes[0].set_title("Edge Tangential and Centripetal Accelerations vs. Time (R = 0.15 m)")
+    axes[0].plot(df["time_t"], df["a_t_edge"], "-", color="tab:red", linewidth=2, label="$a_t = \\alpha R$")
+    axes[0].set_ylabel("Tangential $a_t$ (m/s$^2$)")
+    axes[0].set_title("Wafer Edge Accelerations $a_t(t)$ and $a_c(t)$ (S-curve, $R = 0.15$ m)")
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend()
 
-    axes[1].plot(df["time_t"], df["a_c_edge"], "--", color="purple", label="$a_c = \\omega^2 R$")
-    axes[1].set_xlabel("Time t (s)")
-    axes[1].set_ylabel("Centripetal Accel. $a_c$ (m/s$^2$)")
+    axes[1].plot(df["time_t"], df["a_c_edge"], "--", color="tab:purple", linewidth=2, label="$a_c = \\omega^2 R$")
+    axes[1].set_xlabel("Time $t$ (s)")
+    axes[1].set_ylabel("Centripetal $a_c$ (m/s$^2$)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
     axes[1].legend()
 
     finish_and_save(fig, "fig05_edge_at_ac_vs_time.png")
 
-
 # Hình 6: Thời gian tăng tốc t_ramp theo tốc độ tăng tốc
 def plot_fig06():
-    df_sum = pd.read_csv("data/outputs/summary.csv")
-    df_b = df_sum[df_sum["group"] == "GroupB"]
+    df_sum = load_csv("summary.csv")
 
-    df_lin = df_b[df_b["profile"] == "Linear"]
-    df_scv = df_b[df_b["profile"] == "S-curve"]
+    # Chọn case
+    target_cases = [
+        "case_300mm_extreme_low_accel_100",
+        "case_300mm_linear_500",
+        "case_300mm_linear_1000",
+        "case_300mm_linear_2000",
+        "case_300mm_linear_5000",
+        "case_300mm_linear_10000",
+        "case_300mm_extreme_high_accel_20000"
+    ]
+
+    accel_rates = []
+    t_ramps = []
+
+    for c_name in target_cases:
+        matched = df_sum[df_sum["case"] == c_name]
+        if len(matched) > 0:
+            row = matched.iloc[0]
+            # Trích xuất giá trị số của tốc độ tăng vòng quay (rpm/s) từ phần cuối tên trường hợp
+            rate_val = float(c_name.split("_")[-1])
+            t_val = get_t_ramp_from_summary_or_results(row)
+            accel_rates.append(rate_val)
+            t_ramps.append(t_val)
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.plot(df_lin["accel_rpm_s"], df_lin["t_ramp_s"], "-o", linewidth=2, label="Linear profile")
-    ax.plot(df_scv["accel_rpm_s"], df_scv["t_ramp_s"], "--s", linewidth=2, label="S-curve profile")
+    ax.plot(accel_rates, t_ramps, "-o", color="tab:blue", linewidth=2, label="Linear Profile (3000 rpm target)")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_title("Ramp-up Time $t_{ramp}$ vs. Acceleration Rate (Target 3000 rpm)")
+    ax.set_title("Ramp-Up Time $t_{ramp}$ vs. Acceleration Rate (Linear Profile)")
     ax.set_xlabel("Acceleration Rate (rpm/s)")
-    ax.set_ylabel("Ramp-up Time $t_{ramp}$ (s)")
+    ax.set_ylabel("Ramp-Up Time $t_{ramp}$ (s)")
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend()
 
     finish_and_save(fig, "fig06_tramp_vs_accel_rate.png")
 
-
 # Hình 7: Gia tốc hướng tâm a_c theo rpm cho các cỡ wafer khác nhau
 def plot_fig07():
-    df_w = pd.read_csv("data/outputs/wafer_size_sweep.csv")
+    wafer_cases = [
+        (100, "case_100mm_linear_1000_results.csv", "-"),
+        (150, "case_150mm_linear_1000_results.csv", "--"),
+        (200, "case_200mm_linear_1000_results.csv", "-."),
+        (300, "case_300mm_linear_1000_results.csv", ":")
+    ]
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
 
-    w100 = df_w[df_w["diameter_mm"] == 100]
-    w150 = df_w[df_w["diameter_mm"] == 150]
-    w200 = df_w[df_w["diameter_mm"] == 200]
-    w300 = df_w[df_w["diameter_mm"] == 300]
-
-    ax.plot(w100["rpm"], w100["a_c_edge"], "-o", markevery=5, label="Wafer 100 mm")
-    ax.plot(w150["rpm"], w150["a_c_edge"], "--s", markevery=5, label="Wafer 150 mm")
-    ax.plot(w200["rpm"], w200["a_c_edge"], "-.^", markevery=5, label="Wafer 200 mm")
-    ax.plot(w300["rpm"], w300["a_c_edge"], ":d", markevery=5, label="Wafer 300 mm")
+    for d_mm, fname, ls in wafer_cases:
+        df_w = load_csv(fname)
+        # Filter only the ramp-up region where alpha > 0
+        df_ramp = df_w[df_w["alpha"] > 1e-6]
+        if len(df_ramp) == 0:
+            df_ramp = df_w
+        ax.plot(
+            df_ramp["rpm"], df_ramp["a_c_edge"],
+            linestyle=ls, linewidth=2,
+            label=f"Wafer {d_mm} mm ($R = {d_mm / 2000:.3f}$ m)"
+        )
 
     ax.set_title("Edge Centripetal Acceleration $a_c$ vs. Spin Speed for Wafer Sizes")
     ax.set_xlabel("Spin Speed (rpm)")
@@ -199,18 +241,28 @@ def plot_fig07():
 
 # Hình 8: Sai số năng lượng theo thời gian (vẽ trên thang đo log)
 def plot_fig08():
-    df_lin = pd.read_csv("data/outputs/case_300mm_linear_1000.csv")
-    df_scv = pd.read_csv("data/outputs/case_300mm_scurve_1000.csv")
+    df_sum = load_csv("summary.csv")
+
+    # Filter dt convergence study cases for linear and scurve profiles
+    df_lin_dt = df_sum[df_sum["case"].str.contains("linear_1000_dt", na=False)].sort_values("dt_s")
+    df_scv_dt = df_sum[df_sum["case"].str.contains("scurve_1000_dt", na=False)].sort_values("dt_s")
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.plot(df_lin["time_t"], df_lin["energy_error_abs"], "-", label="Linear (RK45)")
-    ax.plot(df_scv["time_t"], df_scv["energy_error_abs"], "--", label="S-curve (RK45)")
 
-    # Đặt trục y theo thang log theo đúng hướng dẫn Bước 7
+    # Plot energy error in Joules (or relative percentage if updated by Code A)
+    err_col = "energy_err_pct" if "energy_err_pct" in df_sum.columns else "energy_err_J"
+    ylabel_str = "Relative Energy Error (%)" if err_col == "energy_err_pct" else "Energy Error $|\\int \\tau d\\theta - \\Delta K|$ (J)"
+
+    if len(df_lin_dt) > 0:
+        ax.plot(df_lin_dt["dt_s"], np.maximum(df_lin_dt[err_col], 1e-16), "-o", linewidth=2, label="Linear (RK45)")
+    if len(df_scv_dt) > 0:
+        ax.plot(df_scv_dt["dt_s"], np.maximum(df_scv_dt[err_col], 1e-16), "--s", linewidth=2, label="S-curve (RK45)")
+
+    ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_title("Work-Energy Theorem Numerical Error $|\\int \\tau d\\theta - \\Delta K|$")
-    ax.set_xlabel("Time t (s)")
-    ax.set_ylabel("Absolute Energy Error (J) [Log Scale]")
+    ax.set_title("Work-Energy Theorem Error vs. Simulation Time Step $\\Delta t$")
+    ax.set_xlabel("Time Step $\\Delta t$ (s)")
+    ax.set_ylabel(ylabel_str)
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend()
 
@@ -219,7 +271,15 @@ def plot_fig08():
 
 # Hình 9: Độ dày màng phủ photoresist h theo vận tốc góc omega
 def plot_fig09():
-    df_h = pd.read_csv("data/outputs/film_thickness_sweep.csv")
+    df_h = pd.read_csv("case_300mm_multistep_results.csv")
+
+    # Tốc độ góc tại omega_0 = 500 rpm
+    omega_0 = 500.0 * 2.0 * np.pi / 60.0
+    df_valid = df[df["rpm"] >= 500.0].copy()
+    omega_vals = df_valid["omega"].to_numpy()
+
+    # Meyerhofer scaling law: h / h_0 = (omega / omega_0)^(-1/2)
+    h_ratio = (omega_vals / omega_0) ** (-0.5)
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
     ax.plot(df_h["omega"], df_h["thickness_um"], "-o", markevery=4, linewidth=2,
@@ -236,7 +296,7 @@ def plot_fig09():
 
 # Hình 10: Toàn bộ quy trình spin-coating nhiều bước
 def plot_fig10():
-    df_ms = pd.read_csv("data/outputs/case_multistep_recipe.csv")
+    df_ms = load.csv("case_300mm_multistep_results.csv")
 
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7.5, 5.5))
 
@@ -258,32 +318,70 @@ def plot_fig10():
 # B4: Vẽ 1 hình quỹ đạo (trajectory) kèm vector gia tốc
 
 def plot_fig11():
-    df = pd.read_csv("data/outputs/case_trajectory_short.csv")
+    df_sum = load_csv("summary.csv")
+    df = load_csv("case_300mm_linear_1000_results.csv")
 
-    x = df["x_edge"].to_numpy()
-    y = df["y_edge"].to_numpy()
-    ax_vec = df["ax_edge"].to_numpy()
-    ay_vec = df["ay_edge"].to_numpy()
+    # Lấy bán kính đĩa R_m từ summary.csv cho case_300mm_linear_1000
+    matched = df_sum[df_sum["case"] == "case_300mm_linear_1000"]
+    R = float(matched["R_m"].iloc[0]) if len(matched) > 0 else 0.15
 
-    fig, ax = plt.subplots(figsize=(6.5, 6.5))
-    ax.plot(x, y, "-", color="blue", linewidth=2, label="Edge Trajectory $(R\\cos\\theta, R\\sin\\theta)$")
-    ax.scatter(x[0], y[0], color="green", s=60, label="Start Point (t = 0)")
+    # B1: Lọc chỉ lấy giai đoạn đầu time_t <= 0.3s
+    df_sub = df[df["time_t"] <= 0.3].copy()
 
-    # Lấy một vài điểm cách đều trên quỹ đạo để vẽ mũi tên vectơ gia tốc
-    idx = [2, 10, 20, 30, 40, 50, 58]
-    ax.quiver(x[idx], y[idx], ax_vec[idx], ay_vec[idx],
-              angles="xy", scale_units="xy", scale=180.0, color="red",
-              label="Total Acceleration Vector $\\vec{a}$")
+    t = df_sub["time_t"].to_numpy()
+    theta = df_sub["theta"].to_numpy()
+    a_t = df_sub["a_t_edge"].to_numpy()
+    a_c = df_sub["a_c_edge"].to_numpy()
 
-    # Giữ tỉ lệ 2 trục bằng nhau để hình tròn không bị méo
+    # B2: Nhập x và y
+    x = R * np.cos(theta)
+    y = R * np.sin(theta)
+
+    fig, ax = plt.subplots(figsize=(6.8, 6.8))
+
+    # Vẽ đường viền hình tròn của toàn bộ tấm wafer để tham chiếu
+    theta_circle = np.linspace(0, 2 * np.pi, 200)
+    ax.plot(R * np.cos(theta_circle), R * np.sin(theta_circle), "--", color="lightgray", linewidth=1.2,
+            label=f"Wafer Outline ($R = {R:.2f}$ m)")
+
+    # Vạch quỹ đạo trong 0,3 giây đầu tiên
+    ax.plot(x, y, "-", color="tab:blue", linewidth=2.5,
+            label="Trajectory of a point on the wafer edge ($t \\leq 0.3$ s)")
+    ax.scatter(x[0], y[0], color="green", s=65, zorder=5, label="Start point ($t = 0$)")
+
+    # B3: Chọn 10 thời điểm cách đều nhau trong khoảng từ 0 đến 0,3 giây.
+    idx = np.linspace(0, len(t) - 1, 10, dtype=int)
+
+    # B4: Các phương tiếp tuyến (-sin theta, cos theta) và hướng tâm (-cos theta, -sin theta)
+    tx = -np.sin(theta[idx])
+    ty = np.cos(theta[idx])
+    cx = -np.cos(theta[idx])
+    cy = -np.sin(theta[idx])
+
+    ax_vec = a_t[idx] * tx + a_c[idx] * cx
+    ay_vec = a_t[idx] * ty + a_c[idx] * cy
+
+    # B5: Chuẩn hóa các vectơ về độ dài cố định là 0,04 m để tất cả các mũi tên đều nằm gọn trong khung hình
+    mag = np.sqrt(ax_vec**2 + ay_vec**2)
+    fixed_len = 0.04
+    ux = (ax_vec / mag) * fixed_len
+    uy = (ay_vec / mag) * fixed_len
+
+    ax.quiver(
+        x[idx], y[idx], ux, uy,
+        angles="xy", scale_units="xy", scale=1,
+        color="crimson", width=0.006, zorder=6,
+        label="Total acceleration vector (arrows show direction only)"
+    )
+
     ax.set_aspect("equal")
-    ax.set_xlim(-0.22, 0.22)
-    ax.set_ylim(-0.22, 0.22)
-    ax.set_title("Wafer Edge Point Trajectory and Acceleration Vectors (R = 0.15 m)")
-    ax.set_xlabel("Position x (m)")
-    ax.set_ylabel("Position y (m)")
+    ax.set_xlim(-0.21, 0.21)
+    ax.set_ylim(-0.21, 0.21)
+    ax.set_title(f"Edge-point trajectory and direction of the acceleration\nvector during the first 0.3 s (R = {R:.2f} m)")
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("y (m)")
     ax.grid(True, linestyle="--", alpha=0.5)
-    ax.legend(loc="upper right")
+    ax.legend(loc="lower left", fontsize=9, frameon=True)
 
     finish_and_save(fig, "fig11_edge_trajectory_vectors.png")
 
@@ -292,24 +390,46 @@ def plot_fig11():
 
 # Hình 12: Biểu đồ cột 1 - So sánh t_ramp, jerk_max, a_t_max của 3 profile
 def plot_fig12():
-    df_sum = pd.read_csv("data/outputs/summary.csv")
-    df_a = df_sum[df_sum["group"] == "GroupA"]
+    df_sum = load_csv("summary.csv")
 
-    profiles = df_a["profile"].tolist()
+    case_list = [
+        ("Linear", "case_300mm_linear_1000"),
+        ("S-curve", "case_300mm_scurve_1000"),
+        ("Exponential\n(99% target)", "case_300mm_exp_1000")
+    ]
 
-    fig, axes = plt.subplots(1, 3, figsize=(9.5, 4))
+    labels = []
+    t_ramps = []
+    jerk_maxs = []
+    at_maxs = []
 
+    for label, c_name in case_list:
+        matched = df_sum[df_sum["case"] == c_name]
+        if len(matched) == 0:
+            raise ValueError(f"Case {c_name} not found in summary.csv")
+        row = matched.iloc[0]
+        labels.append(label)
+        t_ramps.append(get_t_ramp_from_summary_or_results(row))
+        jerk_maxs.append(float(row["jerk_max"]))
+        at_maxs.append(float(row["a_t_max"]))
+
+    x = np.arange(len(labels))
+    fig, axes = plt.subplots(1, 3, figsize=(9.8, 4.2))
+
+    # Subplot 1: t_ramp
     axes[0].bar(profiles, df_a["t_ramp_s"], color="steelblue", edgecolor="black")
     axes[0].set_title("Ramp Time $t_{ramp}$")
     axes[0].set_ylabel("Time (s)")
     axes[0].grid(True, linestyle="--", alpha=0.5)
 
+    # Subplot 2: jerk_max (log scale)
     axes[1].bar(profiles, df_a["jerk_max"], color="seagreen", edgecolor="black")
     axes[1].set_yscale("log")
     axes[1].set_title("Max Jerk $j_{max}$")
     axes[1].set_ylabel("Jerk (rad/s$^3$, log scale)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
 
+    # Subplot 3: a_t_max
     axes[2].bar(profiles, df_a["a_t_max"], color="indianred", edgecolor="black")
     axes[2].set_title("Max Edge Tangential $a_{t,max}$")
     axes[2].set_ylabel("Acceleration (m/s$^2$)")
@@ -321,30 +441,59 @@ def plot_fig12():
 
 # Hình 13: Biểu đồ cột 2 - Số vòng quay và thời gian của từng bước trong quy trình
 def plot_fig13():
-    df_steps = pd.read_csv("data/outputs/multistep_steps_summary.csv")
+ df_ms = load_csv("case_300mm_multistep_results.csv")
 
-    steps = df_steps["step_name"].tolist()
-    x = np.arange(len(steps))
+    # Các tên gọi và thời lượng bước mặc định từ quy cách công thức gồm nhiều bước
+    durations = [1.0, 5.0, 2.5, 30.0, 3.0]
+    step_names = [
+        "1. Ramp 500 rpm",
+        "2. Hold 500 rpm",
+        "3. Ramp 3000 rpm",
+        "4. Hold 3000 rpm",
+        "5. Spin Down"
+    ]
 
+    # Đọc các khoảng thời gian từ tệp data/inputs/case_300mm_multistep.json nếu tệp này tồn tại
+    json_path = os.path.join(INPUT_DIR, "case_300mm_multistep.json")
+    if os.path.exists(json_path):
+        with open(json_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        for key in ["steps", "segments", "recipe", "process_steps"]:
+            if key in cfg and isinstance(cfg[key], list) and len(cfg[key]) > 0:
+                if "duration" in cfg[key][0]:
+                    durations = [float(s["duration"]) for s in cfg[key]]
+                break
+
+    # Tính số vòng quay = delta_theta / (2 * pi) tại mỗi mốc thời gian
+    t_milestones = np.cumsum([0.0] + durations)
+    t_arr = df_ms["time_t"].to_numpy()
+    theta_arr = df_ms["theta"].to_numpy()
+    theta_at_milestones = np.interp(t_milestones, t_arr, theta_arr)
+    revolutions = np.diff(theta_at_milestones) / (2.0 * np.pi)
+
+    if len(step_names) != len(durations):
+        step_names = [f"Step {i+1}" for i in range(len(durations))]
+
+    x = np.arange(len(step_names))
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7.5, 5.5))
 
-    axes[0].bar(x, df_steps["revolutions"], width=0.5, color="royalblue", edgecolor="black", label="Revolutions (rev)")
-    axes[0].set_ylabel("Number of Revolutions")
-    axes[0].set_title("Revolutions and Duration Breakdown for Multi-Step Process")
+    axes[0].bar(x, revolutions, width=0.5, color="royalblue", edgecolor="black", label="Revolutions (rev)")
+    axes[0].set_ylabel("Revolutions $N$ (rev)")
+    axes[0].set_title("Revolutions and Step Duration Breakdown for Multi-Step Process")
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend()
 
-    axes[1].bar(x, df_steps["duration_s"], width=0.5, color="sandybrown", edgecolor="black", label="Step Duration (s)")
+    axes[1].bar(x, durations, width=0.5, color="sandybrown", edgecolor="black", label="Step Duration (s)")
     axes[1].set_xticks(x)
-    axes[1].set_xticklabels(steps, rotation=15)
+    axes[1].set_xticklabels(step_names, rotation=15)
     axes[1].set_xlabel("Process Steps")
-    axes[1].set_ylabel("Duration (s)")
+    axes[1].set_ylabel("Duration $\\Delta t$ (s)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
     axes[1].legend()
 
     finish_and_save(fig, "fig13_bar_multistep_breakdown.png")
 
-
+'''
 # Trường hợp mẫu
 
 def create_sample_csv_files():
@@ -493,7 +642,7 @@ def create_sample_csv_files():
     pd.DataFrame({
         "time_t": t_tr, "theta": th_tr, "x_edge": x_e, "y_edge": y_e, "ax_edge": ax_e, "ay_edge": ay_e
     }).to_csv("data/outputs/case_trajectory_short.csv", index=False)
-
+'''
 
 # Chạy chương trình chính
 if __name__ == "__main__":

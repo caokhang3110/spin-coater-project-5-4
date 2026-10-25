@@ -43,12 +43,14 @@ def finish_and_save(fig, filename):
 
 
 def get_t_ramp_from_summary_or_results(row, target_rpm=3000.0):
-    if "t_ramp_s" in row and pd.notna(row["t_ramp_s"]):
+    case_name = row["case"]
+
+    # Always compute 99% target speed directly from CSV for exponential profile (~2.995 s)
+    # because summary.csv might store the 99.9% value (~3.9 s)
+    if "exp" not in case_name and "t_ramp_s" in row and pd.notna(row["t_ramp_s"]):
         return float(row["t_ramp_s"])
 
-    case_name = row["case"]
     df_case = load_csv(f"{case_name}_results.csv")
-    # For exponential profile, use 99% of target speed (~4.6 * tau_m)
     threshold = 0.99 * target_rpm if "exp" in case_name else 0.999 * target_rpm
     reached = df_case[df_case["rpm"] >= threshold]
     if len(reached) > 0:
@@ -78,13 +80,13 @@ def plot_fig01():
     finish_and_save(fig, "fig01_omega_profiles.png")
 
 
-# Figure 2: Angular acceleration alpha(t) and angular jerk j(t)
+# Figure 2: Angular acceleration $\alpha(t)$ (top) and angular jerk $j(t)$ on a symmetric logarithmic scale (bottom) for the three acceleration profiles for a 300 mm wafer accelerated to 3000 rpm at 1000 rpm/s ($\Delta t = 0.005\text{ s}$). Because the numerical simulation initializes with $\alpha(0) > 0$, the theoretical infinite jerk spike at $t = 0$ for the Linear and Exponential profiles is not shown. Additionally, the small negative jerk spike ($\approx -100\text{ rad/s}^3$) near $t \approx 3.9\text{–}4.0\text{ s}$ on the Exponential curve occurs when the ramp stage terminates and the small residual acceleration ($\alpha \approx 1\text{ rad/s}^2$) is truncated to zero upon transitioning to the constant-speed hold stage. 
 def plot_fig02():
     df_lin = load_csv("case_300mm_linear_1000_results.csv")
     df_scv = load_csv("case_300mm_scurve_1000_results.csv")
     df_exp = load_csv("case_300mm_exp_1000_results.csv")
 
-    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7, 6))
+    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7.2, 6.4))
 
     # Top panel: angular acceleration alpha
     axes[0].plot(df_lin["time_t"], df_lin["alpha"], "-", linewidth=1.8, label="Linear")
@@ -95,14 +97,22 @@ def plot_fig02():
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend()
 
-    # Bottom panel: angular jerk j
+    # Bottom panel: angular jerk j (symlog scale so S-curve +-209 rad/s^3 is clearly visible)
     axes[1].plot(df_lin["time_t"], df_lin["jerk"], "-", linewidth=1.8, label="Linear")
     axes[1].plot(df_scv["time_t"], df_scv["jerk"], "--", linewidth=1.8, label="S-curve")
     axes[1].plot(df_exp["time_t"], df_exp["jerk"], ":", linewidth=2.0, label="Exponential")
+    axes[1].set_yscale("symlog", linthresh=100)
     axes[1].set_xlabel("Time $t$ (s)")
-    axes[1].set_ylabel("Angular Jerk $j$ (rad/s$^3$)")
+    axes[1].set_ylabel("Angular Jerk $j$ (rad/s$^3$, symlog)")
     axes[1].grid(True, linestyle="--", alpha=0.5)
     axes[1].legend()
+
+    # Add note about theoretical infinite jerk at t = 0 for Linear and Exponential profiles
+    axes[1].text(
+        0.5, -0.24,
+        "Note: Simulation starts with initial $\\alpha(0) > 0$; theoretically, jerk at $t = 0$ is infinite for Linear and Exponential profiles.",
+        transform=axes[1].transAxes, ha="center", va="top", fontsize=8.5, style="italic"
+    )
 
     finish_and_save(fig, "fig02_alpha_jerk_profiles.png")
 
@@ -178,7 +188,7 @@ def plot_fig05():
 def plot_fig06():
     df_sum = load_csv("summary.csv")
 
-    # Select target cases including extreme low and high acceleration cases
+    # Candidate linear cases (case_extreme_high_accel_20000 has a 6000 rpm target and will be filtered out)
     target_cases = [
         "case_extreme_low_accel_100",
         "case_300mm_linear_500",
@@ -197,9 +207,32 @@ def plot_fig06():
         if len(matched) == 0:
             raise ValueError(f"Case '{c_name}' not found in summary.csv")
         row = matched.iloc[0]
-        # Extract numerical acceleration rate (rpm/s) from the end of the case name
+
+        # Check target/max rpm from JSON config or summary.csv to filter only 3000 rpm target cases
+        rpm_target = None
+        json_path = os.path.join(INPUT_DIR, f"{c_name}.json")
+        if os.path.exists(json_path):
+            with open(json_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            for k in ["rpm_target", "target_rpm", "rpm_max", "omega_target_rpm"]:
+                if k in cfg:
+                    rpm_target = float(cfg[k])
+                    break
+        if rpm_target is None:
+            for k in ["rpm_target", "rpm_max", "target_rpm"]:
+                if k in row and pd.notna(row[k]):
+                    rpm_target = float(row[k])
+                    break
+        if rpm_target is None:
+            df_c = load_csv(f"{c_name}_results.csv")
+            rpm_target = float(df_c["rpm"].max())
+
+        # Skip cases whose target speed is not 3000 rpm (e.g., 20000 rpm/s case with 6000 rpm target)
+        if abs(rpm_target - 3000.0) > 100.0:
+            continue
+
         rate_val = float(c_name.split("_")[-1])
-        t_val = get_t_ramp_from_summary_or_results(row)
+        t_val = get_t_ramp_from_summary_or_results(row, target_rpm=3000.0)
         accel_rates.append(rate_val)
         t_ramps.append(t_val)
 
@@ -286,20 +319,27 @@ def plot_fig09():
     # Reference angular velocity at omega_0 = 500 rpm
     omega_0 = 500.0 * 2.0 * np.pi / 60.0
     df_valid = df_ms[df_ms["rpm"] >= 500.0].copy()
-    omega_vals = df_valid["omega"].to_numpy()
+    omega_vals = np.sort(df_valid["omega"].unique())
 
-    # Meyerhofer scaling law: h / h_0 = (omega / omega_0)^(-1/2)
+    # Meyerhofer (1978) analytical scaling law: h / h_0 = (omega / omega_0)^(-1/2)
     h_ratio = (omega_vals / omega_0) ** (-0.5)
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.plot(omega_vals, h_ratio, "-o", markevery=40, linewidth=2,
-            label="Meyerhofer Model ($h/h_0 = (\\omega/\\omega_0)^{-1/2}$)")
+    # Plot solid curve without markers as this is an analytical model, not discrete measurements
+    ax.plot(omega_vals, h_ratio, "-", color="tab:blue", linewidth=2.2,
+            label="Applied Meyerhofer (1978) Analytical Model: $h/h_0 = (\\omega/\\omega_0)^{-1/2}$")
 
-    ax.set_title("Relative Photoresist Film Thickness $h/h_0$ vs. Angular Velocity $\\omega$")
+    ax.set_title("Relative Film Thickness $h/h_0$ vs. Angular Velocity $\\omega$ (Meyerhofer Model)")
     ax.set_xlabel("Angular Velocity $\\omega$ (rad/s)")
     ax.set_ylabel("$h/h_0$")
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend()
+
+    ax.text(
+        0.5, -0.18,
+        "Note: Curve represents the theoretical Meyerhofer (1978) scaling model applied to $\\omega$, not direct fluid simulation.",
+        transform=ax.transAxes, ha="center", va="top", fontsize=8.5, style="italic"
+    )
 
     finish_and_save(fig, "fig09_film_thickness_vs_omega.png")
 
@@ -312,7 +352,7 @@ def plot_fig10():
 
     axes[0].plot(df_ms["time_t"], df_ms["rpm"], "-", color="blue", linewidth=2, label="Spin Speed (rpm)")
     axes[0].set_ylabel("Spin Speed (rpm)")
-    axes[0].set_title("Multi-Step Spin-Coating Process Recipe (Spread -> Spin -> Stop)")
+    axes[0].set_title("Multi-Step Spin-Coating Process Recipe (Spread $\\rightarrow$ Spin $\\rightarrow$ Stop)")
     axes[0].grid(True, linestyle="--", alpha=0.5)
     axes[0].legend()
 
@@ -420,36 +460,43 @@ def plot_fig12():
             raise ValueError(f"Case {c_name} not found in summary.csv")
         row = matched.iloc[0]
         labels.append(label)
-        t_ramps.append(get_t_ramp_from_summary_or_results(row))
+        t_ramps.append(get_t_ramp_from_summary_or_results(row, target_rpm=3000.0))
         jerk_maxs.append(float(row["jerk_max"]))
         at_maxs.append(float(row["a_t_max"]))
 
     x = np.arange(len(labels))
-    fig, axes = plt.subplots(1, 3, figsize=(9.8, 4.2))
+    # Widen figure to (11.2, 4.4) and reduce x-tick font size so labels do not crowd each other
+    fig, axes = plt.subplots(1, 3, figsize=(11.2, 4.4))
 
     # Subplot 1: t_ramp
-    axes[0].bar(x, t_ramps, color="steelblue", edgecolor="black")
+    bars0 = axes[0].bar(x, t_ramps, width=0.55, color="steelblue", edgecolor="black")
     axes[0].set_xticks(x)
-    axes[0].set_xticklabels(labels)
+    axes[0].set_xticklabels(labels, fontsize=9.5)
     axes[0].set_title("Ramp Time $t_{ramp}$")
     axes[0].set_ylabel("Time (s)")
+    axes[0].set_ylim(0, max(t_ramps) * 1.18)
+    axes[0].bar_label(bars0, fmt="%.2f", padding=3, fontsize=9)
     axes[0].grid(True, linestyle="--", alpha=0.5)
 
     # Subplot 2: jerk_max (log scale)
-    axes[1].bar(x, jerk_maxs, color="seagreen", edgecolor="black")
+    bars1 = axes[1].bar(x, jerk_maxs, width=0.55, color="seagreen", edgecolor="black")
     axes[1].set_xticks(x)
-    axes[1].set_xticklabels(labels)
+    axes[1].set_xticklabels(labels, fontsize=9.5)
     axes[1].set_yscale("log")
     axes[1].set_title("Max Jerk $j_{max}$")
     axes[1].set_ylabel("Jerk (rad/s$^3$, log scale)")
+    axes[1].set_ylim(10, max(jerk_maxs) * 4.0)
+    axes[1].bar_label(bars1, fmt="%.0f", padding=3, fontsize=9)
     axes[1].grid(True, linestyle="--", alpha=0.5)
 
     # Subplot 3: a_t_max
-    axes[2].bar(x, at_maxs, color="indianred", edgecolor="black")
+    bars2 = axes[2].bar(x, at_maxs, width=0.55, color="indianred", edgecolor="black")
     axes[2].set_xticks(x)
-    axes[2].set_xticklabels(labels)
+    axes[2].set_xticklabels(labels, fontsize=9.5)
     axes[2].set_title("Max Edge Tangential $a_{t,max}$")
     axes[2].set_ylabel("Acceleration (m/s$^2$)")
+    axes[2].set_ylim(0, max(at_maxs) * 1.18)
+    axes[2].bar_label(bars2, fmt="%.1f", padding=3, fontsize=9)
     axes[2].grid(True, linestyle="--", alpha=0.5)
 
     fig.suptitle("Comparison of Key Metrics Across Three Acceleration Profiles")
@@ -492,21 +539,25 @@ def plot_fig13():
         step_names = [f"Step {i+1}" for i in range(len(durations))]
 
     x = np.arange(len(step_names))
-    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7.5, 5.5))
+    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(7.8, 6.0))
 
-    axes[0].bar(x, revolutions, width=0.5, color="royalblue", edgecolor="black", label="Revolutions (rev)")
+    bars_rev = axes[0].bar(x, revolutions, width=0.5, color="royalblue", edgecolor="black", label="Revolutions (rev)")
     axes[0].set_ylabel("Revolutions $N$ (rev)")
     axes[0].set_title("Revolutions and Step Duration Breakdown for Multi-Step Process")
+    axes[0].set_ylim(0, max(revolutions) * 1.18)
+    axes[0].bar_label(bars_rev, labels=[f"{v:.1f}" for v in revolutions], padding=3, fontsize=9.5)
     axes[0].grid(True, linestyle="--", alpha=0.5)
-    axes[0].legend()
+    axes[0].legend(loc="upper left")
 
-    axes[1].bar(x, durations, width=0.5, color="sandybrown", edgecolor="black", label="Step Duration (s)")
+    bars_dur = axes[1].bar(x, durations, width=0.5, color="sandybrown", edgecolor="black", label="Step Duration (s)")
     axes[1].set_xticks(x)
     axes[1].set_xticklabels(step_names, rotation=15)
     axes[1].set_xlabel("Process Steps")
     axes[1].set_ylabel("Duration $\\Delta t$ (s)")
+    axes[1].set_ylim(0, max(durations) * 1.18)
+    axes[1].bar_label(bars_dur, labels=[f"{v:.1f} s" for v in durations], padding=3, fontsize=9.5)
     axes[1].grid(True, linestyle="--", alpha=0.5)
-    axes[1].legend()
+    axes[1].legend(loc="upper left")
 
     finish_and_save(fig, "fig13_bar_multistep_breakdown.png")
 

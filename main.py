@@ -103,10 +103,21 @@ for path in files:
     
     rel_err, energy_err = check_error(cfg, df)
     
-    # Tính số vòng quay riêng trong giai đoạn tăng tốc (Việc D)
-    t_ramp = cfg["steps"][0]["duration"]
-    idx_ramp = np.searchsorted(t, t_ramp + 1e-9)
-    if idx_ramp >= len(t): idx_ramp = -1
+    # Tính số vòng quay và thời gian riêng trong giai đoạn tăng tốc
+    step0 = cfg["steps"][0]
+    if step0["profile"] == "exponential":
+        rpm_target = step0["rpm_target"]
+        idx_ramp_arr = np.where(df["rpm"].to_numpy() >= 0.99 * rpm_target)[0]
+        if len(idx_ramp_arr) > 0:
+            idx_ramp = idx_ramp_arr[0]
+            t_ramp = t[idx_ramp]
+        else:
+            t_ramp = t[-1]
+            idx_ramp = -1
+    else:
+        t_ramp = step0["duration"]
+        idx_ramp = np.argmin(np.abs(t - t_ramp))
+        
     revolutions_ramp = theta[idx_ramp] / (2 * np.pi)
 
     summary_rows.append({

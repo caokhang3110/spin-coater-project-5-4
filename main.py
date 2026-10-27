@@ -7,6 +7,7 @@ import pandas as pd
 
 from physics_model import calc_physics
 from solvers import solve_motion, check_error
+from profile_segments import validate_duration
 
 
 def load_config(path):
@@ -62,15 +63,7 @@ def load_config(path):
                 raise ValueError(f"{path} (Step {i+1}): duration does not match linear acceleration (expected {expected_dur:.4f}s)")
 
         elif prof == "s_curve":
-            acc = step.get("accel_rpm_s", 0)
-            tj = step.get("t_jerk", 0)
-            if acc <= 0 or tj <= 0:
-                raise ValueError(f"{path} (Step {i+1}): accel_rpm_s and t_jerk must be > 0")
-            if (delta_rpm / acc) < tj - 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): S-curve insufficient time to reach alpha_max")
-            expected_dur = (delta_rpm / acc) + tj
-            if abs(dur - expected_dur) > 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): duration does not match s_curve acceleration (expected {expected_dur:.4f}s)")
+            validate_duration(step, path, i)
 
         elif prof == "exponential":
             Tm = step.get("T_m", 0)

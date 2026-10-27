@@ -3,7 +3,6 @@ from scipy.integrate import solve_ivp, cumulative_trapezoid
 from physics_model import rpm_to_rads
 # Export updated segment generator and error checker for main execution
 from profile_segments import make_segments, validate_duration
-from error_checker import check_error
 def make_segments(steps):
     segments = []
     for s in steps:
@@ -113,3 +112,9 @@ def check_error(cfg, df):
         rel_err = np.max(np.abs(omega[mask] - w_exact[mask]) / np.abs(w_exact[mask]))
 
     return float(rel_err), float(energy_err)
+
+
+# Override check_error with piecewise analytical verification
+
+# Override check_error with piecewise analytical verification
+from error_checker import check_error

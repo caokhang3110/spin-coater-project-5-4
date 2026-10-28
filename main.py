@@ -1,12 +1,13 @@
 import argparse
-import csv
 import glob
 import json
 import os
 import numpy as np
+import pandas as pd
 
 from physics_model import calc_physics
 from solvers import solve_motion, check_error
+from profile_segments import validate_duration
 
 def load_config(path):
     with open(path, encoding="utf-8") as f:
@@ -65,11 +66,9 @@ def load_config(path):
             tj = step.get("t_jerk", 0)
             if acc <= 0 or tj <= 0:
                 raise ValueError(f"{path} (Step {i+1}): accel_rpm_s and t_jerk must be > 0")
-            if (delta_rpm / acc) < tj - 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): S-curve insufficient time to reach alpha_max")
-            expected_dur = (delta_rpm / acc) + tj
-            if abs(dur - expected_dur) > 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): duration does not match s_curve acceleration (expected {expected_dur:.4f}s)")
+            
+            # Use the new validation function from Code A to allow Case B
+            validate_duration(step, path, i)
 
         elif prof == "exponential":
             Tm = step.get("T_m", 0)
@@ -84,79 +83,71 @@ def load_config(path):
     return cfg
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--case", help="Path to a single JSON file to run")
-args = parser.parse_args()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--case", help="Path to a single JSON file to run")
+    args = parser.parse_args()
 
-files = [args.case] if args.case else sorted(glob.glob("data/inputs/*.json"))
-os.makedirs("data/outputs", exist_ok=True)
-summary_rows = []
+    files = [args.case] if args.case else sorted(glob.glob("data/inputs/*.json"))
+    os.makedirs("data/outputs", exist_ok=True)
+    summary_rows = []
 
-for path in files:
-    cfg = load_config(path)
-    name = os.path.splitext(os.path.basename(path))[0]
+    for path in files:
+        cfg = load_config(path)
+        name = os.path.splitext(os.path.basename(path))[0]
 
-    t, theta, omega, alpha = solve_motion(cfg)
-    df, I_total = calc_physics(cfg, t, theta, omega, alpha)
-    
-    # Sử dụng csv thay vì pandas để xuất kết quả từng kịch bản
-    keys = list(df.keys())
-    length = len(df[keys[0]])
-    with open(f"data/outputs/{name}_results.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(keys)
-        for i in range(length):
-            writer.writerow([df[k][i] for k in keys])
-    
-    rel_err, energy_err = check_error(cfg, df)
-    
-    step0 = cfg["steps"][0]
-    if step0["profile"] == "exponential":
-        rpm_target = step0["rpm_target"]
-        rpm_arr = np.array(df["rpm"])
-        idx_ramp_arr = np.where(rpm_arr >= 0.99 * rpm_target)[0]
-        if len(idx_ramp_arr) > 0:
-            idx_ramp = idx_ramp_arr[0]
-            t_ramp = t[idx_ramp]
-        else:
-            t_ramp = t[-1]
-            idx_ramp = -1
-    else:
-        t_ramp = step0["duration"]
-        idx_ramp = np.argmin(np.abs(t - t_ramp))
+        t, theta, omega, alpha = solve_motion(cfg)
+        df, I_total = calc_physics(cfg, t, theta, omega, alpha)
         
-    revolutions_ramp = theta[idx_ramp] / (2 * np.pi)
+        # Restored CSV export using Pandas (avoiding manual for loops)
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame(df)
+        df.to_csv(f"data/outputs/{name}_results.csv", index=False)
+        
+        rel_err, energy_err = check_error(cfg, df)
+        
+        step0 = cfg["steps"][0]
+        if step0["profile"] == "exponential":
+            rpm_target = step0["rpm_target"]
+            rpm_arr = np.array(df["rpm"])
+            idx_ramp_arr = np.where(rpm_arr >= 0.99 * rpm_target)[0]
+            if len(idx_ramp_arr) > 0:
+                idx_ramp = idx_ramp_arr[0]
+                t_ramp = t[idx_ramp]
+            else:
+                t_ramp = t[-1]
+                idx_ramp = -1
+        else:
+            t_ramp = step0["duration"]
+            idx_ramp = np.argmin(np.abs(t - t_ramp))
+            
+        revolutions_ramp = theta[idx_ramp] / (2 * np.pi)
 
-    summary_rows.append({
-        "case": name,
-        "R_m": cfg["R"],
-        "I_total": I_total,
-        "profile": cfg["steps"][0]["profile"],
-        "dt_s": cfg["dt"],
-        "t_end_s": t[-1],
-        "t_ramp_s": t_ramp,
-        "revolutions_ramp": revolutions_ramp,
-        "revolutions_total": theta[-1] / (2 * np.pi),
-        "rpm_max": np.max(df["rpm"]),
-        "alpha_max": np.max(np.abs(alpha)),
-        "jerk_max": np.max(np.abs(df["jerk"])),
-        "a_t_max": np.max(df["a_t_edge"]),
-        "a_c_max": np.max(df["a_c_edge"]),
-        "torque_max": np.max(np.abs(df["torque"])),
-        "power_max": np.max(np.abs(df["power"])),
-        "rel_err_pct": rel_err * 100,
-        "energy_err_J": energy_err
-    })
+        summary_rows.append({
+            "case": name,
+            "R_m": cfg["R"],
+            "I_total": I_total,
+            "profile": cfg["steps"][0]["profile"],
+            "dt_s": cfg["dt"],
+            "t_end_s": t[-1],
+            "t_ramp_s": t_ramp,
+            "revolutions_ramp": revolutions_ramp,
+            "revolutions_total": theta[-1] / (2 * np.pi),
+            "rpm_max": np.max(df["rpm"]),
+            "alpha_max": np.max(np.abs(alpha)),
+            "jerk_max": np.max(np.abs(df["jerk"])),
+            "a_t_max": np.max(df["a_t_edge"]),
+            "a_c_max": np.max(df["a_c_edge"]),
+            "torque_max": np.max(np.abs(df["torque"])),
+            "power_max": np.max(np.abs(df["power"])),
+            "rel_err_pct": rel_err * 100,
+            "energy_err_J": energy_err
+        })
 
-if args.case:
-    row = summary_rows[-1]
-    print(f"\n--- Run results for: {args.case} ---")
-    for key in ["t_ramp_s", "revolutions_ramp", "jerk_max", "a_t_max", "a_c_max", "torque_max", "rel_err_pct", "energy_err_J"]:
-        print(f"{key:>18}: {row[key]:.4g}")
-else:
-    # Xuất file summary bằng csv
-    if summary_rows:
-        with open("data/outputs/summary.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=summary_rows[0].keys())
-            writer.writeheader()
-            writer.writerows(summary_rows)
+    if args.case:
+        row = summary_rows[-1]
+        print(f"\n--- Run results for: {args.case} ---")
+        for key in ["t_ramp_s", "revolutions_ramp", "jerk_max", "a_t_max", "a_c_max", "torque_max", "rel_err_pct", "energy_err_J"]:
+            print(f"{key:>18}: {row[key]:.4g}")
+    else:
+        pd.DataFrame(summary_rows).to_csv("data/outputs/summary.csv", index=False)

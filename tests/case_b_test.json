@@ -1,0 +1,25 @@
+{
+  "R": 0.15,
+  "thickness": 0.000775,
+  "density": 2330,
+  "chuck_mass": 0.17,
+  "chuck_R": 0.045,
+  "dt": 0.001,
+  "t_max": 1.7746,
+  "steps": [
+    {
+      "profile": "s_curve",
+      "rpm_start": 0,
+      "rpm_target": 300,
+      "accel_rpm_s": 1000,
+      "t_jerk": 0.5,
+      "duration": 0.7746
+    },
+    {
+      "profile": "hold",
+      "rpm_start": 300,
+      "rpm_target": 300,
+      "duration": 1.0
+    }
+  ]
+}

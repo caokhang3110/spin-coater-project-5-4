@@ -1,3 +1,6 @@
 ﻿__pycache__/
 *.pyc
 .vscode/
+
+# Output of: python main.py --case tests/case_b_test.json
+data/outputs/case_b_test_results.csv

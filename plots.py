@@ -1,4 +1,4 @@
-# File: plots.py - Role: #6 Code C - Generate Figure 2 to Figure 6 for Written Paper (Project 5.4)
+# Draw 5 figures for the report (Figure2 2-6) from data/outputs
 
 import os
 import json
@@ -48,9 +48,7 @@ def get_t_ramp_from_summary_or_results(row, target_rpm=3000.0):
     return float(row["t_end_s"])
 
 
-# ==============================================================================
 # 5 COMBINED MULTI-PANEL FIGURES FOR WRITTEN PAPER (FIGURES 2 TO 6)
-# ==============================================================================
 
 # Paper Figure 2 (2x2): Kinematics theta, omega, alpha, jerk (symlog scale)
 def plot_combined_fig1():
@@ -102,7 +100,7 @@ def plot_combined_fig1():
     finish_and_save(fig, "paper_fig02_kinematics_2x2.png")
 
 
-# Paper Figure 3 (2x2): Phase portrait, Trajectory, a_t/a_c, and Energy error (%) - Legend fixed to "S-curve"
+# Paper Figure 3 (2x2): Phase portrait, Trajectory, a_t/a_c, and Energy error (%)
 def plot_combined_fig2():
     df_sum = load_csv("summary.csv")
     df_lin = load_csv("case_300mm_linear_1000_results.csv")
@@ -174,7 +172,6 @@ def plot_combined_fig2():
         k_max = 0.5 * i_total * (omega_max ** 2)
         err_pct = (err_j / k_max) * 100.0
         err_pct = np.maximum(err_pct, 1e-14)
-        # Sửa nhãn legend thành "S-curve" theo yêu cầu PR[cite: 49]
         axes[1, 1].plot(dt_vals, err_pct, "--s", color="tab:orange", markersize=4, linewidth=1.5, label="S-curve")
 
     axes[1, 1].set_xscale("log")

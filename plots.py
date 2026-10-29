@@ -1,4 +1,4 @@
-# Draw 5 figures for the report (Figure2 2-6) from data/outputs
+# Draw 5 figures for the report (Figure 2-6) from data/outputs
 
 import os
 import json

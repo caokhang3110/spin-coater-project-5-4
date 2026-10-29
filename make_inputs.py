@@ -66,6 +66,13 @@ for Tm, tag in [(0.3, "Tm03"), (0.65, "Tm065"), (1.0, "Tm10")]:
         "profile": "exponential", "rpm_start": 0.0, "rpm_target": 3000.0, "T_m": Tm, "duration": dur
     })
 
+# S-curve Case B (triangular): delta_rpm = 300 < accel * t_jerk = 1000 * 0.5 = 500,
+# so a_max is never reached; duration = 2 * sqrt(300 * 0.5 / 1000) = 0.7746 s
+save_json("data/inputs", "case_300mm_scurve_300_caseB", 300, 0.001, {
+    "profile": "s_curve", "rpm_start": 0.0, "rpm_target": 300.0,
+    "accel_rpm_s": 1000.0, "t_jerk": 0.5, "duration": 0.7746
+})
+
 # =====================================================================
 # 2. NHÓM B: Thay đổi gia tốc (500, 2000, 5000, 10000 rpm/s)
 # =====================================================================

@@ -140,7 +140,7 @@ if __name__ == "__main__":
             "a_c_max": np.max(df["a_c_edge"]),
             "torque_max": np.max(np.abs(df["torque"])),
             "power_max": np.max(np.abs(df["power"])),
-            "rel_err_pct": rel_err * 100,
+            "rel_err_pct": rel_err,  # check_error already returns a percentage
             "energy_err_J": energy_err
         })
 

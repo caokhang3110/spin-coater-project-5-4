@@ -5,7 +5,7 @@ System requirements: Python 3.10 or higher. Open the terminal in the root direct
 `pip install -r requirements.txt`
 
 ## 2. Usage
-*   **Run all cases:** `python main.py` (The program will automatically compute 26 cases and update the `summary.csv` file).
+*   **Run all cases:** `python main.py` (The program will automatically compute 27 cases and update the `summary.csv` file).
 *   **Run and print results for a single case (For testing/Q&A):** `python main.py --case data/inputs/case_300mm_scurve_1000.json`
 *   **Generate plots:** `python plots.py` (Extracts data from the outputs folder to generate plots in the visualizations folder).
 

@@ -1,6 +1,7 @@
 # File: plots.py
 # Role: #6 Code C - Graphs, charts, and figures
-# Task: Read data from CSV files in data/outputs and generate all 13 figures (300 dpi)
+# Task: Read data from CSV files in data/outputs and generate the 5 paper figures (Figure 2-6, 300 dpi).
+#       The 13 single-figure functions plot_fig01..plot_fig13 are kept for reference but no longer called.
 
 import os
 import json
@@ -697,7 +698,7 @@ def plot_combined_fig2():
         k_max = 0.5 * i_total * (omega_max ** 2)
         err_pct = (err_j / k_max) * 100.0
         err_pct = np.maximum(err_pct, 1e-14)
-        axes[1, 1].plot(dt_vals, err_pct, "--s", color="tab:orange", markersize=4, linewidth=1.5, label="S-curve (RK45)")
+        axes[1, 1].plot(dt_vals, err_pct, "--s", color="tab:orange", markersize=4, linewidth=1.5, label="S-curve")
 
     axes[1, 1].set_xscale("log")
     axes[1, 1].set_yscale("log")
@@ -948,24 +949,10 @@ def plot_combined_fig5():
 if __name__ == "__main__":
     set_common_style()
 
-    plot_fig01()
-    plot_fig02()
-    plot_fig03()
-    plot_fig04()
-    plot_fig05()
-    plot_fig06()
-    plot_fig07()
-    plot_fig08()
-    plot_fig09()
-    plot_fig10()
-    plot_fig11()
-    plot_fig12()
-    plot_fig13()
-
     plot_combined_fig1()
     plot_combined_fig2()
     plot_combined_fig3()
     plot_combined_fig4()
     plot_combined_fig5()
 
-    print("13 figures have been generated in visualizations/ folder.")
+    print("5 paper figures (Figure 2-6) have been generated in visualizations/ folder.")

@@ -1,7 +1,6 @@
 # File: plots.py
 # Role: #6 Code C - Graphs, charts, and figures
-# Task: Read data from CSV files in data/outputs and generate the 5 paper figures (Figure 2-6, 300 dpi).
-#       The 13 single-figure functions plot_fig01..plot_fig13 are kept for reference but no longer called.
+# Task: Read data from CSV files in data/outputs and generate all 13 figures (300 dpi)
 
 import os
 import json
@@ -615,13 +614,13 @@ def plot_combined_fig1():
     fig.legend(handles, labels, loc="upper center", ncol=3, fontsize=8.5, frameon=True, bbox_to_anchor=(0.5, 1.02))
     fig.tight_layout(rect=[0, 0, 1, 0.94])
 
-    save_path = os.path.join(VIS_DIR, "paper_fig01_kinematics_2x2.png")
+    save_path = os.path.join(VIS_DIR, "paper_fig02_kinematics_2x2.png")
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("Saved:", save_path)
 
 
-# Paper Figure 3 (2x2): Phase portrait, Trajectory, a_t/a_c, and Energy error (%) - S-curve only + text note for Linear
+# Paper Figure 3 (2x2): Phase portrait, Trajectory, a_t/a_c, and Energy error (%) - Text note moved to bottom right
 def plot_combined_fig2():
     df_sum = load_csv("summary.csv")
     df_lin = load_csv("case_300mm_linear_1000_results.csv")
@@ -687,7 +686,7 @@ def plot_combined_fig2():
     ax_c_left.set_title("(c) Edge $a_t$ and $a_c$ (S-curve)", fontsize=9, fontweight="bold")
     ax_c_left.grid(True, linestyle="--", alpha=0.5)
 
-    # (d) Energy error (%) vs. time step dt (log-log scale) - S-curve only, reading energy_err_J from summary.csv
+    # (d) Energy error (%) vs. time step dt (log-log scale) - S-curve only
     df_scv_dt = df_sum[df_sum["case"].str.contains("scurve_1000_dt", na=False)].sort_values("dt_s")
 
     if len(df_scv_dt) > 0:
@@ -698,7 +697,7 @@ def plot_combined_fig2():
         k_max = 0.5 * i_total * (omega_max ** 2)
         err_pct = (err_j / k_max) * 100.0
         err_pct = np.maximum(err_pct, 1e-14)
-        axes[1, 1].plot(dt_vals, err_pct, "--s", color="tab:orange", markersize=4, linewidth=1.5, label="S-curve")
+        axes[1, 1].plot(dt_vals, err_pct, "--s", color="tab:orange", markersize=4, linewidth=1.5, label="S-curve (RK45)")
 
     axes[1, 1].set_xscale("log")
     axes[1, 1].set_yscale("log")
@@ -707,8 +706,8 @@ def plot_combined_fig2():
     axes[1, 1].set_title("(d) Energy Error vs. $\\Delta t$", fontsize=9, fontweight="bold")
     axes[1, 1].grid(True, linestyle="--", alpha=0.5)
     
-    # Ghi chú cho trường hợp Linear có sai số bằng 0 (không vẽ được trên thang log)
-    axes[1, 1].text(0.05, 0.15, "Linear: exact ($\\approx 0\\%$)", transform=axes[1, 1].transAxes,
+    # Dời khung chú thích sang góc dưới bên phải (tránh đè đường S-curve)
+    axes[1, 1].text(0.55, 0.12, "Linear: exact ($\\approx 0\\%$)", transform=axes[1, 1].transAxes,
                     fontsize=8, fontstyle="italic", bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="gray", alpha=0.8))
     axes[1, 1].legend(loc="upper left", fontsize=7.5, frameon=True)
 
@@ -721,7 +720,8 @@ def plot_combined_fig2():
                loc="upper center", ncol=5, fontsize=8, frameon=True, bbox_to_anchor=(0.5, 1.02))
     fig.tight_layout(rect=[0, 0, 1, 0.94])
 
-    save_path = os.path.join(VIS_DIR, "paper_fig02_phase_traj_edge_err_2x2.png")
+    # Đổi tên file đầu ra thành paper_fig03 (Figure 3 trong Paper)
+    save_path = os.path.join(VIS_DIR, "paper_fig03_phase_traj_edge_err_2x2.png")
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("Saved:", save_path)
@@ -797,7 +797,7 @@ def plot_combined_fig3():
         ax.tick_params(labelsize=8)
 
     fig.tight_layout()
-    save_path = os.path.join(VIS_DIR, "paper_fig03_parametric_1x3.png")
+    save_path = os.path.join(VIS_DIR, "paper_fig04_parametric_1x3.png")
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("Saved:", save_path)
@@ -871,7 +871,7 @@ def plot_combined_fig4():
     fig.legend(handles, leg_labels, loc="upper center", ncol=3, fontsize=8.5, frameon=True, bbox_to_anchor=(0.5, 1.05))
     fig.tight_layout(rect=[0, 0, 1, 0.92])
 
-    save_path = os.path.join(VIS_DIR, "paper_fig04_profile_bars_1x3.png")
+    save_path = os.path.join(VIS_DIR, "paper_fig05_profile_bars_1x3.png")
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("Saved:", save_path)
@@ -940,7 +940,7 @@ def plot_combined_fig5():
     fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=8, frameon=True, bbox_to_anchor=(0.5, 1.06))
     fig.tight_layout(rect=[0, 0, 1, 0.91])
 
-    save_path = os.path.join(VIS_DIR, "paper_fig05_multistep_1x2.png")
+    save_path = os.path.join(VIS_DIR, "paper_fig06_multistep_1x2.png")
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("Saved:", save_path)
@@ -955,4 +955,4 @@ if __name__ == "__main__":
     plot_combined_fig4()
     plot_combined_fig5()
 
-    print("5 paper figures (Figure 2-6) have been generated in visualizations/ folder.")
+    print("5 figures have been generated in visualizations/ folder.")

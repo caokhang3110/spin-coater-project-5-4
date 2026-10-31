@@ -1,8 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 from physics_model import rpm_to_rads
-from profile_segments import make_segments, validate_duration
-from error_checker import check_error
+from profile_segments import make_segments
 
 
 def solve_motion(cfg):

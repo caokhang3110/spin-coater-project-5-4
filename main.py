@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 
 from physics_model import calc_physics
-from solvers import solve_motion, check_error
+from solvers import solve_motion
+from error_checker import check_error
 from profile_segments import validate_duration
 
 def load_config(path):
@@ -32,7 +33,6 @@ def load_config(path):
         rpm0 = step["rpm_start"]
         rpm1 = step["rpm_target"]
         dur = step["duration"]
-        delta_rpm = abs(rpm1 - rpm0)
 
         if rpm0 < 0 or rpm1 < 0:
             raise ValueError(f"{path} (Step {i+1}): RPM cannot be negative")
@@ -49,31 +49,7 @@ def load_config(path):
                 if abs(rpm0 - prev_target) > 1e-6:
                     raise ValueError(f"{path} (Step {i+1}): Steps not continuous ({rpm0} != {prev_target})")
 
-        if prof == "hold":
-            if delta_rpm > 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): Hold step must have rpm_start == rpm_target")
-
-        elif prof == "linear":
-            acc = step.get("accel_rpm_s", 0)
-            if acc <= 0:
-                raise ValueError(f"{path} (Step {i+1}): accel_rpm_s must be > 0")
-            expected_dur = delta_rpm / acc
-            if abs(dur - expected_dur) > 1e-6:
-                raise ValueError(f"{path} (Step {i+1}): duration does not match linear acceleration (expected {expected_dur:.4f}s)")
-
-        elif prof == "s_curve":
-            acc = step.get("accel_rpm_s", 0)
-            tj = step.get("t_jerk", 0)
-            if acc <= 0 or tj <= 0:
-                raise ValueError(f"{path} (Step {i+1}): accel_rpm_s and t_jerk must be > 0")
-            
-            # Use the new validation function from Code A to allow Case B
-            validate_duration(step, path, i)
-
-        elif prof == "exponential":
-            Tm = step.get("T_m", 0)
-            if Tm <= 0:
-                raise ValueError(f"{path} (Step {i+1}): T_m must be > 0")
+        validate_duration(step, path, i)
 
         total_time += dur
 
@@ -99,12 +75,9 @@ if __name__ == "__main__":
         t, theta, omega, alpha = solve_motion(cfg)
         df, I_total = calc_physics(cfg, t, theta, omega, alpha)
         
-        # Restored CSV export using Pandas (avoiding manual for loops)
-        if not isinstance(df, pd.DataFrame):
-            df = pd.DataFrame(df)
         df.to_csv(f"data/outputs/{name}_results.csv", index=False)
         
-        rel_err, energy_err = check_error(cfg, df)
+        rel_err, energy_err = check_error(cfg, df, I_total)
         
         step0 = cfg["steps"][0]
         if step0["profile"] == "exponential":
@@ -140,7 +113,7 @@ if __name__ == "__main__":
             "a_c_max": np.max(df["a_c_edge"]),
             "torque_max": np.max(np.abs(df["torque"])),
             "power_max": np.max(np.abs(df["power"])),
-            "rel_err_pct": rel_err,  # check_error already returns a percentage
+            "rel_err_pct": rel_err * 100,
             "energy_err_J": energy_err
         })
 

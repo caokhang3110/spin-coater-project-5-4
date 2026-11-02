@@ -42,9 +42,6 @@ def validate_duration(step, path="", step_idx=0):
 
 
 def make_segments(steps):
-    if isinstance(steps, dict):
-        steps = steps.get("steps", [steps])
-
     segments = []
     for s in steps:
         prof = s["profile"]

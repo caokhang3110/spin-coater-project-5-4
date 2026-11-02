@@ -45,26 +45,17 @@ def evaluate_exact_trajectories(t, segments, w_init, th_init=0.0):
     return theta_ana, omega_ana
 
 
-def check_error(cfg, df):
-    t_col = "time_t" if "time_t" in df else ("t" if "t" in df else df.columns[0])
-    t = np.asarray(df[t_col], dtype=float)
+def check_error(cfg, df, I_total):
+    # df is the DataFrame from calc_physics; I_total is the total inertia from Eq. (9)
+    t = np.asarray(df["time_t"], dtype=float)
     theta_num = np.asarray(df["theta"], dtype=float)
     omega_num = np.asarray(df["omega"], dtype=float)
+    KE = np.asarray(df["kinetic_energy"], dtype=float)
 
-    if "kinetic_energy" in df:
-        KE = np.asarray(df["kinetic_energy"], dtype=float)
-    elif "KE" in df:
-        KE = np.asarray(df["KE"], dtype=float)
-    else:
-        KE = np.zeros_like(omega_num)
-
-    i = np.argmax(np.abs(omega_num))
-    I_val = 2.0 * KE[i] / (omega_num[i] ** 2)
-
-    steps = cfg.get("steps", []) if isinstance(cfg, dict) else cfg
+    steps = cfg["steps"]
     segments = make_segments(steps)
-    w0_init = rpm_to_rads(steps[0]["rpm_start"]) if len(steps) > 0 else omega_num[0]
-    th0_init = float(theta_num[0]) if len(theta_num) > 0 else 0.0
+    w0_init = rpm_to_rads(steps[0]["rpm_start"])
+    th0_init = float(theta_num[0])
 
     theta_ana, omega_ana = evaluate_exact_trajectories(t, segments, w0_init, th0_init)
 
@@ -98,7 +89,7 @@ def check_error(cfg, df):
             else:
                 alpha_seg = np.zeros_like(t_seg)
 
-            p_seg = (I_val * alpha_seg) * w_seg
+            p_seg = (I_total * alpha_seg) * w_seg
             w_seg_integral = cumulative_trapezoid(p_seg, t_seg, initial=0.0) + work_accumulated
             work_total[mask] = w_seg_integral
             work_accumulated = float(w_seg_integral[-1])
